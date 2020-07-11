@@ -3,7 +3,7 @@ import struct
 import serial
 import time
 
-from Queue import Queue, Empty, Full
+from queue import Queue, Empty, Full
 
 from .protocol import Order, Error, OutCommandIndexer, IncCommandIndexer, read_response, write_command, read_order, write_order
 import copy
