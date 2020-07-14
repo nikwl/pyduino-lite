@@ -1,3 +1,6 @@
+/* 
+  Copyright 2020, Nikolas Lamb. 
+*/
 #include <Arduino.h>
 #include <DynamixelShield.h>
 
