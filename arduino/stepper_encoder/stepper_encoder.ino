@@ -17,14 +17,23 @@
     validate_command - New Orders need to pass this test
     execute_command  - Here's where you implement any new Order
 
+  When adding a new physical device, update the following functions:
+    setup            - Do any device setup here (obvoiusly)
+    loop             - Some devices, like steppers, need to be constantly updated
+
+    validate_command - You'll probably need to verify the new device id
+    execute_command  - Here's where you implement the mechanics
+
   After reading an incoming command, the command is always stored in the 
-    variable 'inc_command' which can be indexed using IncCommandIndexer. Use 
+    variable 'inc_command' which can be indexed using CommandIndexer. Use 
     this to grab any values from the incoming command that you need, for  
     instance within the execute_command function. Similarly, place any return 
     values in the variable 'out_resp' which can be indexed using 
-    OutCommandIndexer. Any data in this array will be written via serial after
+    ResponseIndexer. Any data in this array will be written via serial after
     the current loop completes.
 */
+
+#define DEBUG_SERIAL_PORT 115200
 
 // Total number of devices
 uint8_t num_devices = 2;
@@ -84,7 +93,7 @@ void read_command()
   */
 
   // First byte is always the order
-  inc_command[INC_ORDER] = read_order();
+  inc_command[CMD_ORDER] = read_order();
 
   // HELLO is the only command that doesn't have additional data appended
   if (inc_command[0] == HELLO) {
@@ -92,12 +101,12 @@ void read_command()
   }
 
   // Read the rest of the command
-  inc_command[INC_INDEX] = read_i8();
-  inc_command[INC_VEL] = read_i16();
-  inc_command[INC_POS] = read_i16();
+  inc_command[CMD_INDEX] = read_i8();
+  inc_command[CMD_VEL] = read_i16();
+  inc_command[CMD_POS] = read_i16();
 
   // Checksum will be automatically appended and handled
-  inc_command[INC_CHECKSUM] = read_i16();
+  inc_command[CMD_CHECKSUM] = read_i16();
 }
 
 void write_response()
@@ -114,14 +123,97 @@ void write_response()
       where order usually indicates SUCCESS or ERROR.
   */
 
-  // This updates the last element of the array with the checksum
-  generate_checksum();
-
-  write_i8(out_resp[OUT_ORDER]);
-  write_i16(out_resp[OUT_DATA]);
+  write_i8(out_resp[RESP_ORDER]);
+  write_i16(out_resp[RESP_DATA]);
 
   // Checksum will be automatically appended and handled
-  write_i16(out_resp[OUT_CHECKSUM]);
+  write_i16(out_resp[RESP_CHECKSUM]);
+}
+
+bool validate_command() {
+  /* 
+    Validates an incoming command
+  */
+
+  if (inc_command[CMD_ORDER] == QUERY_DEVICE) {
+    if ((inc_command[CMD_INDEX] >= 0) && (inc_command[CMD_INDEX] < num_devices)){
+      return true;
+    }
+  }
+  return false;
+}
+
+void execute_command() {
+  /* 
+    Executes a valid command
+  */
+
+  if (inc_command[CMD_ORDER] == QUERY_DEVICE) {
+    switch(inc_command[CMD_INDEX]) {
+      case 0: {
+        steppers[inc_command[CMD_INDEX]].moveTo(inc_command[CMD_POS]);
+        steppers[inc_command[CMD_INDEX]].setSpeed(inc_command[CMD_VEL]);
+        break;
+      } 
+      case 1: {
+        out_resp[RESP_DATA] = tick_count;
+        break;
+      }
+      default:
+        out_resp[RESP_ORDER] = ERROR;
+        out_resp[RESP_DATA] = INVALID_DEVICE;
+        break;
+    }
+  } else {
+    out_resp[RESP_ORDER] = ERROR;
+    out_resp[RESP_DATA] = INVALID_ORDER;
+  }
+}
+
+void get_messages_from_serial()
+{
+  if(Serial.available() > 0) { 
+  
+    // Get the next command
+    read_command();
+
+    // HELLO is a special case
+    if(inc_command[CMD_ORDER] == HELLO) {
+
+      // Don't say hello twice
+      if(!is_connected) {
+        is_connected = true;
+        write_order(HELLO);
+      } else {
+        write_order(ALREADY_CONNECTED);
+      }
+      return;
+
+    } else {
+      out_resp[RESP_DATA] = 0; // Make sure to return something 
+
+      // First check for message corruption
+      if (!validate_checksum()) {
+        out_resp[RESP_ORDER] = ERROR;
+        out_resp[RESP_DATA] = CORRUPTION;
+      } else {
+        // Then do error checking
+        if (!validate_command()) {
+          out_resp[RESP_ORDER] = ERROR;
+          out_resp[RESP_DATA] = INVALID_COMMAND;
+        } else {
+          out_resp[RESP_ORDER] = SUCCESS;
+          execute_command();
+        }
+      }
+
+      // This updates the last element of the array with the checksum
+      // MAKE SURE TO DO THIS BEFORE WRITING
+      generate_checksum();
+      // After all the response elements are set, write to serial
+      write_response();
+    }
+  }
 }
 
 void loop()
@@ -147,89 +239,6 @@ void loop()
   pinALast = aVal;
 }
 
-bool validate_command() {
-  /* 
-    Validates an incoming command
-  */
-
-  if (inc_command[INC_ORDER] == MOVE_OR_QUERY) {
-    if ((inc_command[INC_INDEX] >= 0) && (inc_command[INC_INDEX] < num_devices)){
-      return true;
-    }
-  }
-  return false;
-}
-
-void execute_command() {
-  /* 
-    Executes a valid command
-  */
-
-  if (inc_command[INC_ORDER] == MOVE_OR_QUERY) {
-    switch(inc_command[INC_INDEX]) {
-      case 0: {
-        steppers[inc_command[INC_INDEX]].moveTo(inc_command[INC_POS]);
-        steppers[inc_command[INC_INDEX]].setSpeed(inc_command[INC_VEL]);
-        break;
-      } 
-      case 1: {
-        out_resp[OUT_DATA] = tick_count;
-        break;
-      }
-      default:
-        out_resp[OUT_ORDER] = ERROR;
-        out_resp[OUT_DATA] = INVALID_DEVICE;
-        break;
-    }
-  } else {
-    out_resp[OUT_ORDER] = ERROR;
-    out_resp[OUT_DATA] = INVALID_ORDER;
-  }
-}
-
-void get_messages_from_serial()
-{
-  if(Serial.available() > 0) { 
-  
-    // Get the next command
-    read_command();
-
-    // HELLO is a special case
-    if(inc_command[INC_ORDER] == HELLO) {
-
-      // Don't say hello twice
-      if(!is_connected) {
-        is_connected = true;
-        write_order(HELLO);
-      } else {
-        write_order(ALREADY_CONNECTED);
-      }
-      return;
-
-    } else {
-      out_resp[OUT_DATA] = 0; // Make sure to return something 
-
-      // First check for message corruption
-      if (!validate_checksum()) {
-        out_resp[OUT_ORDER] = ERROR;
-        out_resp[OUT_DATA] = CORRUPTION;
-      } else {
-        // Then do error checking
-        if (!validate_command()) {
-          out_resp[OUT_ORDER] = ERROR;
-          out_resp[OUT_DATA] = INVALID_COMMAND;
-        } else {
-          out_resp[OUT_ORDER] = SUCCESS;
-          execute_command();
-        }
-      }
-
-      // After all the response elements are set, write to serial
-      write_response();
-    }
-  }
-}
-
 void generate_checksum() {
   /*
     Generates the checksum
@@ -238,7 +247,7 @@ void generate_checksum() {
   int16_t sum = 0;
   for (uint8_t i = 0; i < out_len-1; i++)
     sum += out_resp[i];
-  out_resp[OUT_CHECKSUM] = ~sum;
+  out_resp[RESP_CHECKSUM] = ~sum;
 }
 
 bool validate_checksum() {

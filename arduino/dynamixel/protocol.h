@@ -1,7 +1,7 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#define DEBUG_SERIAL_PORT 115200
+/* NOTE: All enums here should match those defined in protocol.py */
 
 // Define the orders that can be sent and received
 enum Order {
@@ -9,7 +9,9 @@ enum Order {
   ALREADY_CONNECTED = 1,
   ERROR = 2,
   SUCCESS = 3,
-  MOVE_OR_QUERY = 4,
+  POSITION_MOVE = 4,
+  VELOCITY_MOVE = 5,
+  QUERY_DEVICE = 6,
 };
 
 // Define possible errors
@@ -21,19 +23,19 @@ enum Error {
 };
 
 // Makes indexing easier
-enum IncCommandIndexer {
-  INC_ORDER = 0,
-  INC_INDEX = 1,
-  INC_VEL = 2,
-  INC_POS = 3,
-  INC_CHECKSUM = 4,
+enum CommandIndexer {
+  CMD_ORDER = 0,
+  CMD_INDEX = 1,
+  CMD_VEL = 2,
+  CMD_POS = 3,
+  CMD_CHECKSUM = 4,
 };
 
 // Makes indexing easier
-enum OutCommandIndexer {
-  OUT_ORDER = 0,
-  OUT_DATA = 1,
-  OUT_CHECKSUM = 2,
+enum ResponseIndexer {
+  RESP_ORDER = 0,
+  RESP_DATA = 1,
+  RESP_CHECKSUM = 2,
 };
 
 #endif

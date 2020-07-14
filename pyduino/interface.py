@@ -3,9 +3,9 @@ import struct
 import serial
 import time
 
-from queue import Queue, Empty, Full
+from Queue import Queue, Empty, Full
 
-from .protocol import Order, Error, OutCommandIndexer, IncCommandIndexer, read_response, write_command, read_order, write_order
+from .protocol import Order, Error, CommandIndexer, ResponseIndexer, read_response, write_command, read_order, write_order
 import copy
 
 class Device():
@@ -18,10 +18,10 @@ class Device():
         self._data = None
         self._data_lock = threading.Lock()
 
-    def get(self):
+    def get_command(self):
         return self._queue.get(block=False)
     
-    def put(self, cmd):
+    def put_command(self, cmd):
         # Some weirdness prevents a normal put from being interrupted. This 
         # timeout fixes that.
         try:
@@ -126,7 +126,7 @@ class PyDuino(threading.Thread):
         while (not is_connected) and (time.time() - start < timeout):
             write_order(ser, Order.HELLO)
             
-            # Common result of reading from the wrong device is serial exception 
+            # Common result of reading from the wrong device is serial exception here
             try:
                 bytes_array = bytearray(ser.read(1))
             except serial.serialutil.SerialException:
@@ -158,13 +158,20 @@ class PyDuino(threading.Thread):
         '''
             read_data: Read data from a device. Device data is None by default,
                 ie if this function is called on a device that has not yet
-                been contacted then the result will be none. 
+                recieved data from the arduino then the result will be none. 
         '''
         if (device >= self._num_devices):
             raise ValueError('Device does not exist')
         return self._devices[device].read_data()
         
-            
+
+    def is_connected(self):
+        '''
+            is_connected: Checks if the interface is currently connected to an
+                Arduino. 
+        '''
+        return hasattr(self, '_ser')
+
     def is_waiting(self):
         '''
             is_waiting: Will return true if the interface still has messages 
@@ -182,29 +189,35 @@ class PyDuino(threading.Thread):
                 prevents additional commands from being sent to a device before
                 the backoff time has elapsed. 
 
-                I suggest keeping the first two command elements as:
-                    [Order, Device Index, ..., Checksum]
-                to make indexing the device list easy. 
+                Will partially parse the command to obtain the device index. 
+                For this reason, the protocol should have the following form:
+                    [Order, Device Index, ...]
+
+                Additionally, PyDuino doesn't care how many elements are in the 
+                array, so long as the first element is the Order and the second
+                element is the device index. Any command of the form specified
+                above is valid, so long as it is parsed in the write_command
+                function in protocol.py.
             Inputs:
                 command: [int]
-                    command of the form specified in protocol.py.
+                    Command of the form:
+                        [Order, Device Index, ...].
+                    Should correspond to the your parsing specified in 
+                    protocol.py. 
                 backoff: float
-                    time to wait before sending another command to this device.
+                    Time to wait before sending another command to this device.
         '''
 
-        # Copy to prevent any external editing
-        cmd = list(command)
-
-        # Make sure all of the values are ints
-        cmd = [int(c) for c in cmd]
+        # Copy and force to be ints
+        command = [int(c) for c in command]
 
         # Append checksum
-        cmd.append(self.generate_checksum(cmd))
+        command.append(self.generate_checksum(command))
 
         # Commands should be a tuple of (command, backoff) so that they're dequeued correctly
         # In addition, we assume that the second element is the device index
-        device_id = cmd[1]
-        self._devices[device_id].put((cmd, backoff))
+        device_id = command[1]
+        self._devices[device_id].put_command((command, backoff))
 
         # Increment command counter
         with self._counter_lock:
@@ -214,58 +227,54 @@ class PyDuino(threading.Thread):
         if (not hasattr(self, '_ser')):
             raise RuntimeError('Start method called before serial connection was initialized.')
 
+        command = None
         while self.is_alive():
             for device_index, device in enumerate(self._devices):
-                cmd = None
-
+                
                 # Don't get the next command if the device is still operating
                 if (device.is_done()):
                     try:
-                        cmd, target_time = device.get()
+                        command, target_time = device.get_command()
                     except Empty:
                         pass
 
-                if (cmd is not None):
+                if (command is not None):
                     while self.is_alive():
                         if self.verbose:
                             print('*** sending command ***')
-                            print('  {}'.format(cmd))
+                            print('  {}'.format(command))
 
-                        # Send the command
+                        # Send the command, start device timer
                         self._ser.flushInput()
-                        write_command(self._ser, cmd)
+                        write_command(self._ser, command)
                         device.start(backoff=target_time)
 
                         # Get the response
                         resp = read_response(self._ser)
                             
-                        # Check if it was corrupted
-                        if (self.verify_checksum(resp)):
-
-                            # Send again if was corrupted on arduino side
-                            if (resp[OutCommandIndexer.OUT_ORDER.value] == Order.ERROR.value and 
-                                resp[OutCommandIndexer.OUT_DATA.value] == Error.CORRUPTION.value):
-                                if self.verbose:
-                                    print('*** got response ***')
-                                    print(' resp corrupted: {}'.format(resp))
-                                continue
+                        # Check if it was corrupted on the send or on the return
+                        if (not self.verify_checksum(resp) or
+                                (resp[ResponseIndexer.RESP_ORDER.value] == Order.ERROR.value and 
+                                resp[ResponseIndexer.RESP_DATA.value] == Error.CORRUPTION.value)):
                             if self.verbose:
                                 print('*** got response ***')
-                                print(' : {}'.format(resp))
-                            
-                            # By default, the device data is set to the response minus the checksum
-                            device.put_data(resp[:-1])
+                                print(' command corrupted: {}'.format(resp))
+                            continue
                         else:
                             if self.verbose:
                                 print('*** got response ***')
-                                print(' cmd corrupted: {}'.format(resp))
-                            continue
+                                print('  {}'.format(resp))
+                            # Record the returned value
+                            device.put_data(resp[:-1])
                         break
                     
                     # Decrement the number of messages we're waiting on
                     with self._counter_lock:
                         self._command_counter -= 1
-                self._messages_sent += 1
+                    self._messages_sent += 1
+                    
+                    # Reset command
+                    command = None
 
     @staticmethod
     def generate_checksum(command):
