@@ -259,7 +259,7 @@ void get_messages_from_serial()
       return;
 
     } else {
-     // A default data value. Overwrite this with whatever you want in execute_command
+      // A default data value. Overwrite this with whatever you want in execute_command
       out_resp[RESP_DATA] = 0;
 
       // First check for message corruption

@@ -90,7 +90,9 @@ def write_command(serial_file, command):
     # Here's a bit of parsing that lets commands of the form [Order, Device Index] slide
     if (len(command) == 3):
         order, device_index, checksum = command
-        motor_velocity, motor_position = 0, 0
+        
+        # Note: you can ONLY pad with zeros to maintain integrity of checksum
+        motor_velocity, motor_position = 0, 0 
     else:
         order, device_index, motor_velocity, motor_position, checksum = command
 
