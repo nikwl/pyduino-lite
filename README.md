@@ -6,7 +6,7 @@ The system has the following advantages:
 
 1) The protocol that dictates message passing can be updated easily by changing the read and write functions on the python and arduino sides.
 2) Commands sent by the host pc can be queued up before being sent, and then sent after a precise and device-independant amount of time using the PyDuino.send function. This allows a single script to issue sequences of distinct commands to many distinct motors, or quickly read from multiple sensors.
-3) The Arduino can be "pinged" using the PyDuino.connect function without throwing and exception. This is useful if the calling script is unsure of which port the ardino is connected to.
+3) The Arduino can be "pinged" using the PyDuino.connect function without throwing an exception. This is useful if the calling script is unsure of which port the ardino is connected to.
 4) Reading from serial on the arduino side is extremely fast, enabling simultaneous control of many stepper motors or other devices that require looping over the body of the arduino code very quickly.
 
 ## Installation
