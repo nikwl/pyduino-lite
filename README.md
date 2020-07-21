@@ -16,7 +16,7 @@ Correct usage of this packaged depends on your use case.
 
 ## Installation
 
-1) Flash the arduino script in `/arduino/stepper_encoder`.
+1) Flash the arduino script in `Arduino/stepper_encoder`.
 2) Install required python packages:
     ```bash
     pip install -r requirements.txt
@@ -76,7 +76,7 @@ Will return True if there are still commands that the interface is waiting to se
 
 ## Applications
 ### Dynamixel Shield
-I initially developed this package to control motors using the Arduino Dynamixel shield. The Dynamixels are great because they implement velocity and/or position control and can also be queried for their location. I've added an example that controls 4 Dynamixel motors in `arduino/dynamixel`, using the same protocol as the stepper and encoder example.
+I initially developed this package to control motors using the [Dynamixel Shield](http://www.robotis.us/dynamixel-shield/). The Dynamixels are great because they implement velocity and/or position control and can also be queried for their location. I've added an example that controls 4 Dynamixel motors in `Arduino/dynamixel`, using the same protocol as the stepper and encoder example.
 
 If you'd like to use this library to control Dynamixel motors with the Dynamixel Shield but aren't quite sure where to start, I'd recommend checking out my [Dynamixel Shield tutorial](https://github.com/nikwl/dynamixel-shield-toolbox). It will guide you through the process of purchasing the right hardware and setting up the motors with the shield.
 
