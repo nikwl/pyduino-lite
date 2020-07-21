@@ -27,7 +27,7 @@ class Device():
             self._queue.put(cmd, timeout=10.0)
             return
         except Full:
-            self.put(cmd)
+            self.put_command(cmd)
 
     def put_data(self, data):
         with self._data_lock:
@@ -54,7 +54,7 @@ class PyDuino(threading.Thread):
                 
                 Allows specification of an outgoing and incoming protocol in 
                 the protocol.py file. This protocol must be the same on the
-                arduino side (obviously).
+                arduino side.
                 
                 PyDuino creates a number of device objects corresponding to 
                 the number of devices specified. Each device object contains a 
