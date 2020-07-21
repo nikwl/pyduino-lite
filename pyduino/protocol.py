@@ -61,7 +61,7 @@ def write_command(serial_file, command):
             
             Notes:
                 1) The command will be exactly the same as whatever is passed
-                    to inteface.send() EXCEPT it will have a checksum appended. 
+                    to interface.send() EXCEPT it will have a checksum appended. 
                     For example:
                         PyDuino.send([1, 2, 3, 4]) 
                     would result in the command array:
@@ -74,7 +74,7 @@ def write_command(serial_file, command):
                         [Order, Device Index, ...]
                     is valid, and can be parsed here. 
                 3) Data types in this case are important. The following are 
-                    availible to choose from:
+                    available to choose from:
                         int8, int16, int32
                     and have corresponding read and write functions defined 
                     below.
@@ -133,7 +133,7 @@ def read_response(serial_file):
                         if (...
                             resp[OutCommandIndexer.OUT_ORDER.value] == Order.ERROR.value and 
                             resp[OutCommandIndexer.OUT_DATA.value] == Error.CORRUPTION.value)):
-                            # Message has been orrupted on arduino side 
+                            # Message has been corrupted on arduino side 
         Inputs:
             serial_file: serial object
                 The arduino serial connection. 
