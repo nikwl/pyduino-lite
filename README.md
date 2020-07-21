@@ -1,15 +1,21 @@
 # pyduino-lite
 ## Overview 
-An easily modifiable python-arduino communication package that enables fast sending and recieving of commands and implements a double-sided checksum to prevent message corruption. Designed with ease of use in mind, it should be very easy to adapt to new projects and augment with new protocols. I've used it in several projects to control multiple Dynamixel servos and stepper motors and read from encoders and pressure sensors simultanously.
+This repo implements easily modifiable Python-to-Arduino communication package that enables fast sending and receiving of commands and implements a double-sided checksum to prevent message corruption. Designed with ease of use in mind, it should be very easy to adapt to new projects and augment with new protocols. I've used it in several projects to control multiple Dynamixel servos and stepper motors and read from encoders and pressure sensors simultaneously.
 
 The system has the following advantages:
 
-1) The protocol that dictates message passing can be updated easily by changing the read and write functions on the python and arduino sides.
-2) Commands sent by the host pc can be queued up before being sent, and then sent after a precise and device-independant amount of time using the PyDuino.send function. This allows a single script to issue sequences of distinct commands to many distinct motors, or quickly read from multiple sensors.
-3) The Arduino can be "pinged" using the PyDuino.connect function without throwing an exception. This is useful if the calling script is unsure of which port the ardino is connected to.
-4) Reading from serial on the arduino side is extremely fast, enabling simultaneous control of many stepper motors or other devices that require looping over the body of the arduino code very quickly.
+1) Message passing protocol can be updated quickly by changing the read and write functions on the Python and Arduino sides.
+2) Each device has its own independent outgoing command queue. 
+3) Commands can be appended with a backoff, which will prevent new commands being sent until that command has completed. 
+4) Reading from serial on the arduino side is extremely fast, enabling simultaneous control of many stepper motors or other devices that require looping quickly over the body of the Arduino code.
+
+Correct usage of this packaged depends on your use case.
+
+* If you're executing a sequence of commands then the goal is to fill up the command queues and pass each command with a backoff that's just slightly less than you think it will take for the command to complete. When a device queue is full then the `PyDuino.send()` method will block until there's space in the queue, so there's no risk of overloading a device. This technique will result in a (near) smooth transition between commands. 
+* If you're executing real-time commands then the goal is to pick a rate at which to send (velocity) commands and then instantiate PyDuino with a queue size of 1  (commands sent on every iteration should overwrite previous commands, and should be sent as soon as they are enqueued).
 
 ## Installation
+
 1) Flash the arduino script in `/arduino/stepper_encoder`.
 2) Install required python packages:
     ```bash
@@ -42,11 +48,37 @@ while True:
         print('{}'.format(data[-1]))
 ```
 
+## Methods
+
+`PyDuino(num_devices, queue_size=2, verbose=False)`
+
+Starts PyDuino with the given number of devices. The queue size determines the number of commands that can be appended to each device queue. 
+
+`PyDuino.connect(ser_string='/dev/ttyUSB1', baudrate=115200, timeout=1.0)`
+
+Attempts to "ping" the Arduino without throwing an exception (will return True if connection was successful, False otherwise). Useful for testing several serial ports if you're not sure which one the Arduino is connected to. 
+
+`PyDuino.send(command, backoff=0)`
+
+Will enqueue the command to the corresponding device queue. Assumes that the command has the basic form: [Order, Device Index, ...]. Optionally specify a time for PyDuino to "backoff" before sending the next command.
+
+`PyDuino.read_data(device)`
+
+Will return the most recent data received from a device. 
+
+`PyDuino.is_connected()`
+
+Will return True if the PC is connected to the Arduino. 
+
+`PyDuino.is_waiting()`
+
+Will return True if there are still commands that the interface is waiting to send. Call this before exiting your script to ensure you don't close the connection too early.
+
 ## Applications
 ### Dynamixel Shield
-I initially developed this package specifically to control a dynamixel shield because I couldn't find any existing packages or tutorials for the shield. The dynamixels are great because you can control them via velocity and or position commands and also easily query their location. I've added an example that controls 4 dynamixel motors in `arduino/dynamixel`, using the same protocol as the stepper and encoder example.
+I initially developed this package to control motors using the Arduino Dynamixel shield. The Dynamixels are great because they implement velocity and/or position control and can also be queried for their location. I've added an example that controls 4 Dynamixel motors in `arduino/dynamixel`, using the same protocol as the stepper and encoder example.
 
-However the dynamixel motors are a little more difficult to set up because in order to control multiple motors you need to reset all of their ids, and if you're using two different kinds of motor you also need to change their baudrates. See <> for dynamixel setup code.
+If you'd like to use this library to control Dynamixel motors with the Dynamixel Shield but aren't quite sure where to start, I'd recommend checking out my [Dynamixel Shield tutorial](https://github.com/nikwl/dynamixel-shield-toolbox). It will guide you through the process of purchasing the right hardware and setting up the motors with the shield.
 
 ## Sources
 The low level serialization is based on the great [robust-serial](https://github.com/araffin/arduino-robust-serial) package covered in this [Medium article](https://medium.com/@araffin/simple-and-robust-computer-arduino-serial-communication-f91b95596788). I really liked this implementation but I didn't like how large and cumbersome the package was to adapt to new projects, so I decided to make my own.
