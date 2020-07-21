@@ -3,7 +3,7 @@ import struct
 
 class Order(Enum):
     '''
-        CommandIndexer: Use this to name the orders, or operations, that the
+        Order: Use this to name the orders, or operations, that the
             arduino can perform.
     '''
     HELLO = 0
@@ -16,7 +16,7 @@ class Order(Enum):
 
 class Error(Enum):
     '''
-        CommandIndexer: Use this to name the possible errors that the arduino 
+        Error: Use this to name the possible errors that the arduino 
             can return. 
     '''
     CORRUPTION = 0
@@ -38,7 +38,7 @@ class CommandIndexer(Enum):
 
 class ResponseIndexer(Enum):
     '''
-        CommandIndexer: Use this to name the indices of incoming responses. 
+        ResponseIndexer: Use this to name the indices of incoming responses. 
             For example:
                 [OUT_ORDER, OUT_DATA, OUT_CHECKSUM] = response
     '''
